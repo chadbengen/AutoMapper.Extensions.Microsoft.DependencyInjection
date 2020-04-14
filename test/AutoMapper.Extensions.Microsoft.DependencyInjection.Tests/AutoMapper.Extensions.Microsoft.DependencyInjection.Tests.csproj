@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\AutoMapper.Extensions.Microsoft.DependencyInjection\AutoMapper.Extensions.Microsoft.DependencyInjection.csproj" />
+    <ProjectReference Include="..\..\src\TestApp\TestApp.csproj" />
   </ItemGroup>
 
   <ItemGroup>

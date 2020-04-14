@@ -6,14 +6,16 @@ namespace AutoMapper.Extensions.Microsoft.DependencyInjection.Tests
     using Shouldly;
     using Xunit;
 
-    public class TypeResolutionTests
+    public class TypeResolutionWithMultipleAddTests
     {
         private readonly IServiceProvider _provider;
 
-        public TypeResolutionTests()
+        public TypeResolutionWithMultipleAddTests()
         {
             IServiceCollection services = new ServiceCollection();
             services.AddAutoMapper(typeof(Source));
+            services.AddAutoMapper(typeof(TestApp.Source));
+            services.AddAutoMapper(typeof(Dest));
             _provider = services.BuildServiceProvider();
         }
 
@@ -26,7 +28,7 @@ namespace AutoMapper.Extensions.Microsoft.DependencyInjection.Tests
         [Fact]
         public void ShouldConfigureProfiles()
         {
-            _provider.GetService<IConfigurationProvider>().GetAllTypeMaps().Length.ShouldBe(3);
+            _provider.GetService<IConfigurationProvider>().GetAllTypeMaps().Length.ShouldBe(5);
         }
 
         [Fact]

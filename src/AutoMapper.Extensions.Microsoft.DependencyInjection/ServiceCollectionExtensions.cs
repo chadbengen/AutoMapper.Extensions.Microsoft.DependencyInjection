@@ -8,18 +8,18 @@ namespace AutoMapper
     using System.Reflection;
     using Microsoft.Extensions.DependencyInjection;
 
-	/// <summary>
-	/// Extensions to scan for AutoMapper classes and register the configuration, mapping, and extensions with the service collection:
-	/// <list type="bullet">
-	/// <item> Finds <see cref="Profile"/> classes and initializes a new <see cref="MapperConfiguration" />,</item> 
-	/// <item> Scans for <see cref="ITypeConverter{TSource,TDestination}"/>, <see cref="IValueResolver{TSource,TDestination,TDestMember}"/>, <see cref="IMemberValueResolver{TSource,TDestination,TSourceMember,TDestMember}" /> and <see cref="IMappingAction{TSource,TDestination}"/> implementations and registers them as <see cref="ServiceLifetime.Transient"/>, </item>
-	/// <item> Registers <see cref="IConfigurationProvider"/> as <see cref="ServiceLifetime.Singleton"/>, and</item>
-	/// <item> Registers <see cref="IMapper"/> as a configurable <see cref="ServiceLifetime"/> (default is <see cref="ServiceLifetime.Transient"/>)</item>
-	/// </list>
-	/// After calling AddAutoMapper you can resolve an <see cref="IMapper" /> instance from a scoped service provider, or as a dependency
-	/// To use <see cref="QueryableExtensions.Extensions.ProjectTo{TDestination}(IQueryable,IConfigurationProvider, System.Linq.Expressions.Expression{System.Func{TDestination, object}}[])" /> you can resolve the <see cref="IConfigurationProvider"/> instance directly for from an <see cref="IMapper" /> instance.
-	/// </summary>
-	public static class ServiceCollectionExtensions
+    /// <summary>
+    /// Extensions to scan for AutoMapper classes and register the configuration, mapping, and extensions with the service collection:
+    /// <list type="bullet">
+    /// <item> Finds <see cref="Profile"/> classes and initializes a new <see cref="MapperConfiguration" />,</item> 
+    /// <item> Scans for <see cref="ITypeConverter{TSource,TDestination}"/>, <see cref="IValueResolver{TSource,TDestination,TDestMember}"/>, <see cref="IMemberValueResolver{TSource,TDestination,TSourceMember,TDestMember}" /> and <see cref="IMappingAction{TSource,TDestination}"/> implementations and registers them as <see cref="ServiceLifetime.Transient"/>, </item>
+    /// <item> Registers <see cref="IConfigurationProvider"/> as <see cref="ServiceLifetime.Singleton"/>, and</item>
+    /// <item> Registers <see cref="IMapper"/> as a configurable <see cref="ServiceLifetime"/> (default is <see cref="ServiceLifetime.Transient"/>)</item>
+    /// </list>
+    /// After calling AddAutoMapper you can resolve an <see cref="IMapper" /> instance from a scoped service provider, or as a dependency
+    /// To use <see cref="QueryableExtensions.Extensions.ProjectTo{TDestination}(IQueryable,IConfigurationProvider, System.Linq.Expressions.Expression{System.Func{TDestination, object}}[])" /> you can resolve the <see cref="IConfigurationProvider"/> instance directly for from an <see cref="IMapper" /> instance.
+    /// </summary>
+    public static class ServiceCollectionExtensions
     {
         public static IServiceCollection AddAutoMapper(this IServiceCollection services, params Assembly[] assemblies)
             => AddAutoMapperClasses(services, null, assemblies);
@@ -59,10 +59,6 @@ namespace AutoMapper
         private static IServiceCollection AddAutoMapperClasses(IServiceCollection services, Action<IServiceProvider, IMapperConfigurationExpression> configAction, 
             IEnumerable<Assembly> assembliesToScan, ServiceLifetime serviceLifetime = ServiceLifetime.Transient)
         {
-            // Just return if we've already added AutoMapper to avoid double-registration
-            if (services.Any(sd => sd.ServiceType == typeof(IMapper)))
-                return services;
-
             assembliesToScan = assembliesToScan as Assembly[] ?? assembliesToScan.ToArray();
 
             var allTypes = assembliesToScan
@@ -73,9 +69,12 @@ namespace AutoMapper
 
             void ConfigAction(IServiceProvider serviceProvider, IMapperConfigurationExpression cfg)
             {
+                var autoMapperAssemblies = serviceProvider.GetServices<AutoMapperAssembly>();
+                var assemblies = autoMapperAssemblies.Select(a => a.Assembly).Distinct();
+
                 configAction?.Invoke(serviceProvider, cfg);
 
-                cfg.AddMaps(assembliesToScan);
+                cfg.AddMaps(assemblies);
             }
 
             var openTypes = new[]
@@ -91,11 +90,16 @@ namespace AutoMapper
                     && !t.IsAbstract 
                     && t.AsType().ImplementsGenericInterface(openType))))
             {
-                services.AddTransient(type.AsType());
+                services.TryAddTransient(type.AsType());
             }
 
-            services.AddSingleton<IConfigurationProvider>(sp => new MapperConfiguration(cfg => ConfigAction(sp, cfg)));
-            services.Add(new ServiceDescriptor(typeof(IMapper),
+            foreach(var assembly in assembliesToScan)
+            {
+                services.AddTransient(sp => new AutoMapperAssembly(assembly));
+            }
+
+            services.TryAddSingleton<IConfigurationProvider>(sp => new MapperConfiguration(cfg => ConfigAction(sp, cfg)));
+            services.TryAdd(new ServiceDescriptor(typeof(IMapper),
 	            sp => new Mapper(sp.GetRequiredService<IConfigurationProvider>(), sp.GetService), serviceLifetime));
 
             return services;
